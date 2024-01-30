@@ -1,12 +1,18 @@
+
 import qrcode
 import os
+from datetime import datetime
 from io import BytesIO
 from flask import (
     Blueprint, flash, redirect, render_template, request, url_for
 )
-
+from reportlab.pdfgen import canvas
+from PyPDF2 import PdfFileWriter, PdfFileReader
 from nomosta.auth import login_required
 from nomosta.db import get_db
+from werkzeug.utils import secure_filename
+
+ALLOWED_EXTENSIONS = {'pdf'}
 
 bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
 
@@ -76,4 +82,49 @@ def generate_qr():
                 return redirect(url_for('dashboard.dashboard'))
 
     flash(error)
+    return render_template('dashboard/dashboard.html')
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def validate_file_upload(file_upload):
+    if not file_upload:
+        return 'No file selected.'
+    elif not allowed_file(file_upload.filename):
+        return 'Invalid file format. Allowed formats are: pdf'
+    return None
+
+def save_uploaded_file(file_upload):
+    pdf_directory = os.path.join(os.path.dirname(__file__), 'static/pdf_files')
+    if not os.path.exists(pdf_directory):
+        os.makedirs(pdf_directory)
+
+    pdf_path = os.path.join(pdf_directory, secure_filename(file_upload.filename))
+    file_upload.save(pdf_path)
+    return pdf_path
+
+def generate_new_filename(original_filename):
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    filename, extension = os.path.splitext(original_filename)
+    new_filename = f"{filename}_{timestamp}{extension}"
+    return new_filename
+
+@bp.route('/upload_pdf', methods=('GET', 'POST'))
+@login_required
+def upload_pdf():
+    if request.method == 'POST':
+        file_upload = request.files.get('file_upload')
+
+        error = validate_file_upload(file_upload)
+        if error:
+            flash(error)
+        else:
+            pdf_path = save_uploaded_file(file_upload)
+            new_filename = generate_new_filename(file_upload.filename)
+            print("PDF Path:", pdf_path)
+            render_pdf =  os.path.join('pdf_files', file_upload.filename)
+            
+   
+            return render_template('dashboard/dashboard.html',render_pdf=render_pdf)
+
     return render_template('dashboard/dashboard.html')
