@@ -29,11 +29,10 @@ def create_app(test_config=None):
     #importing and registering the blueprint from auth.py
     from . import auth
     app.register_blueprint(auth.bp)
-
+    app.add_url_rule('/',endpoint='auth.login')
 
     #importing and registering the blueprint from dashboard.py
     from . import dashboard
     app.register_blueprint(dashboard.bp)
-    # app.add_url_rule('/',endpoint='dashboard')
     
     return app

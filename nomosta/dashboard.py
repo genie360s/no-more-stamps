@@ -1,16 +1,25 @@
 
+import io
 import qrcode
+import base64
 import os
 from datetime import datetime
 from io import BytesIO
 from flask import (
-    Blueprint, flash, redirect, render_template, request, url_for
+    Blueprint, flash, redirect,g, render_template, request, url_for
 )
 from reportlab.pdfgen import canvas
-from PyPDF2 import PdfFileWriter, PdfFileReader
+from PyPDF2 import PdfWriter, PdfReader
 from nomosta.auth import login_required
 from nomosta.db import get_db
 from werkzeug.utils import secure_filename
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from PIL import Image
+
+
+import fitz 
+
 
 ALLOWED_EXTENSIONS = {'pdf'}
 
@@ -20,10 +29,26 @@ bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
 @login_required
 def dashboard():
     db = get_db()
-    dash = db.execute(
-        'SELECT user.id, user.fullname, user.username FROM user'
-    ).fetchall()
-    return render_template('dashboard/dashboard.html', dash=dash)
+    result_set = db.execute('''
+        SELECT u.email, u.fullname, q.company_name, q.qr_code_image , q.phrase_word
+        FROM user u
+        JOIN qrcode q ON u.id = q.user_id;
+    ''').fetchall()
+
+    dash = []
+
+    for row in result_set:
+        data = dict(row)
+
+        # Convert BLOB data to base64-encoded string
+        if 'qr_code_image' in data:
+            image_data = data['qr_code_image']
+            if image_data:
+                data['qr_code_image'] = f"data:image/png;base64,{base64.b64encode(image_data).decode('utf-8')}"
+        print(data)
+        dash.append(data)
+
+    return render_template('dashboard/dashboard.html', data=dash)
 
 @bp.route('/generate_qr', methods=('GET','POST'))
 @login_required
@@ -35,6 +60,7 @@ def generate_qr():
         time_issued = request.form['time_issued']
         company_location = request.form['company_location']
         phrase_word = request.form['phrase_word']
+        user_id = request.form['user_id']
 
         if not company_name:
             error = 'Company name is required.'
@@ -44,6 +70,8 @@ def generate_qr():
             error = 'Company location is required.'
         elif not phrase_word:
             error = 'Phrase word is required.'
+        elif not user_id:
+            error = 'User ID is required.'
 
         if error is None:
             qr = qrcode.QRCode(
@@ -67,14 +95,14 @@ def generate_qr():
 
             # Save QR code image to static folder
             #creating an absolute path to the static folder
-            img_path = os.path.join(os.path.dirname(__file__), 'qr_codes', f'{company_name}.png')
+            img_path = os.path.join(os.path.dirname(__file__), 'static', f'{company_name}.png')
 
             img.save(img_path)
 
             db = get_db()
             try:
-                db.execute('INSERT INTO qrcode (company_name, time_issued, company_location, phrase_word, qr_code_image) VALUES (?, ?, ?, ?, ?)',
-                           (company_name, time_issued, company_location, phrase_word, img_bytes.read()))
+                db.execute('INSERT INTO qrcode (company_name, time_issued, company_location, phrase_word, qr_code_image, user_id) VALUES (?, ?, ?, ?, ?, ?)',
+                           (company_name, time_issued, company_location, phrase_word, img_bytes.read(), user_id))
                 db.commit()
             except db.IntegrityError:
                 error = f"QR Code '{company_name}' is already registered."
@@ -88,6 +116,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def validate_file_upload(file_upload):
+    """Validates the uploaded file and returns an error message if invalid."""
     if not file_upload:
         return 'No file selected.'
     elif not allowed_file(file_upload.filename):
@@ -95,6 +124,7 @@ def validate_file_upload(file_upload):
     return None
 
 def save_uploaded_file(file_upload):
+    """Saves the uploaded file to the static/pdf_files folder and returns the path to the file."""
     pdf_directory = os.path.join(os.path.dirname(__file__), 'static/pdf_files')
     if not os.path.exists(pdf_directory):
         os.makedirs(pdf_directory)
@@ -103,28 +133,70 @@ def save_uploaded_file(file_upload):
     file_upload.save(pdf_path)
     return pdf_path
 
-def generate_new_filename(original_filename):
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    filename, extension = os.path.splitext(original_filename)
-    new_filename = f"{filename}_{timestamp}{extension}"
-    return new_filename
+def get_qr_code_image_data(company_name):
+    """Returns the QR code image data for the given company name."""
+    db = get_db()
+    result_set = db.execute('SELECT qr_code_image FROM qrcode WHERE company_name = ?;', (company_name,)).fetchone()
+    if not result_set:
+        return None
+    qrcode_data = dict(result_set)
+    qrimage_data = qrcode_data['qr_code_image']
+    qrpng_image = f"data:image/png;base64,{base64.b64encode(qrimage_data).decode('utf-8')}"
+    return qrpng_image
+
+def add_qr_code_to_pdf(pdf_path, qrpng_image):
+    """ adds QR code to the PDF and returns the path to the output PDF file."""
+
+    doc = fitz.open( f'{pdf_path}')
+
+    output_folder = os.path.join(os.path.dirname(__file__), 'static/outpdf_files/')
+    
+    
+
+    image_data = base64.b64decode(qrpng_image.split(',')[1])
+    stream = io.BytesIO(image_data)
+
+    for page in doc:
+        w = page.rect.width  # width of this page
+        margin = 20
+        left = w - 240 - margin
+        rect = fitz.Rect(left, margin, left + 240, margin + 240)  # top right square
+        print(stream)
+        page.insert_image(rect, stream=stream)
+    new_pdf_path =  pdf_path.replace(".pdf", "_with_image.pdf")
+    doc.save(new_pdf_path, deflate=True, garbage=3)
+    doc.close()
+
+    return output_folder
+
+
 
 @bp.route('/upload_pdf', methods=('GET', 'POST'))
 @login_required
 def upload_pdf():
     if request.method == 'POST':
         file_upload = request.files.get('file_upload')
+        selected_qrcode = request.form.get('selected_qrcode')
 
-        error = validate_file_upload(file_upload)
-        if error:
+        file_error = validate_file_upload(file_upload)
+        if not selected_qrcode:
+            error = 'QR Code is required.'
             flash(error)
+        elif file_error:
+            flash(file_error)
         else:
+            qrcode_image = get_qr_code_image_data(selected_qrcode)
+            print(qrcode_image)
+
+            # Save uploaded PDF file
             pdf_path = save_uploaded_file(file_upload)
-            new_filename = generate_new_filename(file_upload.filename)
-            print("PDF Path:", pdf_path)
-            render_pdf =  os.path.join('pdf_files', file_upload.filename)
-            
-   
-            return render_template('dashboard/dashboard.html',render_pdf=render_pdf)
+            print(pdf_path)
+            if pdf_path:
+                # Add QR code to the PDF
+                final_pdf = add_qr_code_to_pdf(pdf_path, qrcode_image)
+
+                if final_pdf:
+                    print("Output PDF Path:", final_pdf)
+                    return render_template('dashboard/dashboard.html')
 
     return render_template('dashboard/dashboard.html')
