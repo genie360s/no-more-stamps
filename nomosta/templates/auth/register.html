@@ -21,7 +21,11 @@
             <label for="Password" class="form-label">Password</label>
             <input type="password" class="form-control" id="password" name="password">
         </div>
-
+        <div class="mb-3 w-full">
+            
+            <p class="text-secondary-subtle "> Have an account ?
+                <a  class="text-success text-decoration-underline" href="{{url_for('auth.login')}}">Login </a></p>
+    </div>
         <button type="submit" value="Register" class="btn btn-primary">Submit</button>
     </form>
 </div>

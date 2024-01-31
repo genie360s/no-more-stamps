@@ -8,7 +8,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from nomosta.db import get_db
 
-bp = Blueprint('auth',__name__,url_prefix='/auth')
+bp = Blueprint('auth',__name__)
 
 @bp.route('/register',methods=('GET','POST'))
 def register():
@@ -82,7 +82,7 @@ def load_logged_in_user():
 def logout():
     """Clears the current session, including the stored user id."""
     session.clear()
-    return redirect(url_for('index'))
+    return redirect(url_for('auth.login'))
 
 def login_required(view):
     """Decorator that redirects anonymous users to the login page."""

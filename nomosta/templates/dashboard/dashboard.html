@@ -8,7 +8,7 @@
     {% else %}
     {% endif %}
 </button>
-<a href="" class="btn btn-outline-danger">Log Out</a>
+<a href="{{ url_for('auth.logout') }}" class="btn btn-outline-danger">Log Out</a>
 
 {% endblock%}
 
@@ -55,6 +55,12 @@
                     <label for="Phrase Word" class="form-label">Phrase Word</label>
                     <input type="text" class="form-control" id="phrase_word" name="phrase_word">
                 </div>
+                <div class="mb-3 d-none">
+                    <label for="User ID" class="form-label">User ID</label>
+                    {% if g.user %}                                  
+                    <input type="text" class="form-control" id="user_id" name="user_id" value="{{g.user['id']}}">
+                    {% endif %}
+                </div>
                 
         
                 <button  type="submit" value="generate_qr_code" class="w-100 btn btn-primary">Generate QR Code</button>
@@ -72,13 +78,13 @@
                 <div class="mb-3">
                     <label for="Company Name" class="form-label">Attach QR Code </label>
                     <div class="form-floating">
-                        <select class="form-select" id="qr_code_select" aria-label="select qr code">
-                          <option selected>Open this select menu</option>
-                          <option value="1">One</option>
-                          <option value="2">Two</option>
-                          <option value="3">Three</option>
+                        <select class="form-select" id="qr_code_select" name="selected_qrcode" aria-label="select qr code">
+                          <option selected>select company name</option>
+                          {% for row in data %}
+                          <option value="{{row.company_name}}">{{row.company_name}}</option>
+                          {% endfor %}
                         </select>
-                        <label for="floatingSelect">Select Company QR Code</label>
+                        <label for="company_name">Select Company QR Code</label>
                       </div>
                 </div>
                 
@@ -88,15 +94,35 @@
         </div>
         <div class="flex border border-secondary-subtle rounded-1 p-2 shadow-sm">
             {% if render_pdf %}
-    <iframe src="{{ url_for('static', filename=render_pdf) }}" width="100%" height="600" title="PDF Document"></iframe>
-    <!-- Add any other HTML content you want to display -->
+    <iframe src="{{ url_for('static', filename=render_pdf) }}" width="100%" height="800" title="PDF Document"></iframe>
+    
 {% else %}
-    <p>No PDF selected.</p>
+    <p class="text-danger" >No PDF selected.</p>
 {% endif %}
 
         </div>
     </div>
-    <div class="tab-pane fade" id="pills-contact" role="tabpanel" aria-labelledby="pills-contact-tab">c</div>
+    <div class="tab-pane fade" id="pills-contact" role="tabpanel" aria-labelledby="pills-contact-tab">
+
+
+        <table class="table table-striped caption-top">
+            <caption>Description of the table</caption>
+            <tr>
+              <th>Company Name</th>
+              <th>Phrase Word</th>
+              <th>QR Code Image</th>
+            </tr>
+            
+            {% for row in data %}
+            <tr>
+              <td>{{ row.company_name }}</td>
+                <td>{{ row.phrase_word }}</td>
+              <td><img src="{{ row.qr_code_image }}" alt="QR Code"></td>
+            </tr>
+            {% endfor %}
+          
+          </table>
+    </div>
 </div>
 
 

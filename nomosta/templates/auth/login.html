@@ -2,6 +2,7 @@
 
 {% block content %}
 <div class="w-50 mx-auto" >
+    <h3 class="text-center">Welcome Back to NOMOSTA !</h3>
     <form class="mx-auto border border-secondary-subtle shadow-sm p-4 " method="POST">
         <div class="mb-3">
             <label for="Email" class="form-label">Email address</label>
@@ -11,7 +12,11 @@
             <label for="Password" class="form-label">Password</label>
             <input type="password" class="form-control" id="password" name="password">
         </div>
-
+        <div class="mb-3 w-full">
+            
+                <p class="text-secondary-subtle "> Don't have an Account ? 
+                    <a  class="text-success text-decoration-underline" href="{{url_for('auth.register')}}">Create Account</a></p>
+        </div>
         <button type="submit" value="Register" class="btn btn-primary">Submit</button>
     </form>
 </div>
