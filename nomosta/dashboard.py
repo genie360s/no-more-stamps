@@ -25,9 +25,8 @@ ALLOWED_EXTENSIONS = {'pdf'}
 
 bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
 
-@bp.route('/dashboard')
-@login_required
-def dashboard():
+def get_user_data():
+    """returns all the necessary user data"""
     db = get_db()
     result_set = db.execute('''
         SELECT u.email, u.fullname, q.company_name, q.qr_code_image , q.phrase_word
@@ -47,8 +46,17 @@ def dashboard():
                 data['qr_code_image'] = f"data:image/png;base64,{base64.b64encode(image_data).decode('utf-8')}"
         print(data)
         dash.append(data)
+    return dash
+
+@bp.route('/dashboard')
+@login_required
+def dashboard():
+
+    dash = get_user_data()
 
     return render_template('dashboard/dashboard.html', data=dash)
+
+
 
 @bp.route('/generate_qr', methods=('GET','POST'))
 @login_required
@@ -167,13 +175,27 @@ def add_qr_code_to_pdf(pdf_path, qrpng_image):
     doc.save(new_pdf_path, deflate=True, garbage=3)
     doc.close()
 
-    return output_folder
+    print(new_pdf_path)
 
+    return new_pdf_path
+
+def get_relative_pdf_path(full_pdf_path):
+    """Returns the relative path for the given full path."""
+    # Extract the file name from the full path
+    file_name = os.path.basename(full_pdf_path)
+
+    # Construct the relative path within the "/pdf_files/" directory
+    relative_path = os.path.join("/pdf_files", file_name)
+
+    return relative_path
 
 
 @bp.route('/upload_pdf', methods=('GET', 'POST'))
 @login_required
 def upload_pdf():
+
+    dash = get_user_data()
+
     if request.method == 'POST':
         file_upload = request.files.get('file_upload')
         selected_qrcode = request.form.get('selected_qrcode')
@@ -195,8 +217,12 @@ def upload_pdf():
                 # Add QR code to the PDF
                 final_pdf = add_qr_code_to_pdf(pdf_path, qrcode_image)
 
+                render_pdf = get_relative_pdf_path(final_pdf)
+
                 if final_pdf:
                     print("Output PDF Path:", final_pdf)
-                    return render_template('dashboard/dashboard.html')
+                    dash = get_user_data()
+                    return render_template('dashboard/dashboard.html', render_pdf = render_pdf, data = dash)
 
-    return render_template('dashboard/dashboard.html')
+    return render_template('dashboard/dashboard.html', data=dash)
+
