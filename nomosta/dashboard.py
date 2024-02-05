@@ -51,9 +51,11 @@ def get_user_data():
 @bp.route('/dashboard')
 @login_required
 def dashboard():
+
     dash = get_user_data()
 
     return render_template('dashboard/dashboard.html', data=dash)
+
 
 
 @bp.route('/generate_qr', methods=('GET','POST'))
@@ -172,6 +174,7 @@ def add_qr_code_to_pdf(pdf_path, qrpng_image):
     new_pdf_path =  pdf_path.replace(".pdf", "_with_image.pdf")
     doc.save(new_pdf_path, deflate=True, garbage=3)
     doc.close()
+
     print(new_pdf_path)
 
     return new_pdf_path
@@ -186,10 +189,13 @@ def get_relative_pdf_path(full_pdf_path):
 
     return relative_path
 
+
 @bp.route('/upload_pdf', methods=('GET', 'POST'))
 @login_required
 def upload_pdf():
+
     dash = get_user_data()
+
     if request.method == 'POST':
         file_upload = request.files.get('file_upload')
         selected_qrcode = request.form.get('selected_qrcode')
@@ -210,6 +216,7 @@ def upload_pdf():
             if pdf_path:
                 # Add QR code to the PDF
                 final_pdf = add_qr_code_to_pdf(pdf_path, qrcode_image)
+
                 render_pdf = get_relative_pdf_path(final_pdf)
 
                 if final_pdf:
@@ -218,3 +225,4 @@ def upload_pdf():
                     return render_template('dashboard/dashboard.html', render_pdf = render_pdf, data = dash)
 
     return render_template('dashboard/dashboard.html', data=dash)
+
